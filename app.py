@@ -18,7 +18,7 @@ with col1:
     no2_ppb = st.number_input("NO₂ (ppb)", 0.0, 2000.0, 40.0, step=1.0)
 
 with col2:
-    st.subheader("Weather (Optional)")
+    st.subheader("Weather")
     temp = st.number_input("Temperature (°C)", -10.0, 50.0, 28.0, step=0.5)
     humidity = st.number_input("Humidity (%)", 0.0, 100.0, 70.0, step=1.0)
 
