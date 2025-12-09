@@ -1,105 +1,110 @@
+# app.py
 import streamlit as st
-import numpy as np
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="বাংলাদেশ AQI প্রেডিক্টর", page_icon="🌍", layout="centered")
+st.set_page_config(page_title="Bangladesh Real-time AQI Calculator", page_icon="🌍", layout="centered")
 
-st.title("🌍 রিয়েল-টাইম এয়ার কোয়ালিটি ইনডেক্স (AQI) প্রেডিক্টর")
-st.markdown("নিচে তোমার সেন্সর বা পরিমাপের ডাটা দাও — আমি AQI বলে দিচ্ছি + কী করা উচিত তাও বলছি")
+st.title("Real-time Air Quality Index (AQI) Calculator")
+st.markdown("Enter your sensor readings below to get instant AQI and health recommendations")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("বায়ুর উপাদান (Pollutants)")
+    st.subheader("Pollutants")
     pm25 = st.number_input("PM2.5 (µg/m³)", 0.0, 1000.0, 25.0, step=0.1)
     pm10 = st.number_input("PM10 (µg/m³)", 0.0, 1000.0, 54.0, step=0.1)
     co_ppm = st.number_input("CO (ppm)", 0.0, 50.0, 1.0, step=0.1)
     o3_ppb = st.number_input("O₃ (ppb)", 0.0, 400.0, 60.0, step=1.0)
-    no2_ppb = st.number_input("NO₂ (ppb)", 0.0, 1000.0, 40.0, step=1.0)
+    no2_ppb = st.number_input("NO₂ (ppb)", 0.0, 2000.0, 40.0, step=1.0)
 
 with col2:
-    st.subheader("আবহাওয়া (Weather)")
-    temp = st.number_input("তাপমাত্রা (°C)", -10.0, 50.0, 28.0, step=0.5)
-    humidity = st.number_input("আর্দ্রতা (%)", 0.0, 100.0, 70.0, step=1.0)
+    st.subheader("Weather (Optional)")
+    temp = st.number_input("Temperature (°C)", -10.0, 50.0, 28.0, step=0.5)
+    humidity = st.number_input("Humidity (%)", 0.0, 100.0, 70.0, step=1.0)
 
-# —————————— US EPA AQI ক্যালকুলেশন ফাংশন ——————————
+
+# ==================== AQI Calculation (US EPA Standard) ====================
 def calculate_sub_aqi(C, breakpoints):
-    for (low_c, high_c, low_i, high_i) in breakpoints:
+    for low_c, high_c, low_i, high_i in breakpoints:
         if low_c <= C <= high_c:
             return low_i + (high_i - low_i) * (C - low_c) / (high_c - low_c)
     return 500 if C > breakpoints[-1][1] else 0
+
 
 def get_aqi(pm25=None, pm10=None, co=None, o3=None, no2=None):
     aqi_list = []
 
     # PM2.5
     if pm25 is not None:
-        bp_pm25 = [(0,12,0,50), (12.1,35.4,51,100), (35.5,55.4,101,150), 
-                   (55.5,150.4,151,200), (150.5,250.4,201,300), (250.5,500.4,301,500)]
-        aqi_list.append(("PM2.5", calculate_sub_aqi(pm25, bp_pm25)))
+        bp = [(0, 12, 0, 50), (12.1, 35.4, 51, 100), (35.5, 55.4, 101, 150),
+              (55.5, 150.4, 151, 200), (150.5, 250.4, 201, 300), (250.5, 500.4, 301, 500)]
+        aqi_list.append(("PM2.5", calculate_sub_aqi(pm25, bp)))
 
     # PM10
     if pm10 is not None:
-        bp_pm10 = [(0,54,0,50), (55,154,51,100), (155,254,101,150), 
-                   (255,354,151,200), (355,424,201,300), (425,604,301,500)]
-        aqi_list.append(("PM10", calculate_sub_aqi(pm10, bp_pm10)))
+        bp = [(0, 54, 0, 50), (55, 154, 51, 100), (155, 254, 101, 150),
+              (255, 354, 151, 200), (355, 424, 201, 300), (425, 604, 301, 500)]
+        aqi_list.append(("PM10", calculate_sub_aqi(pm10, bp)))
 
-    # CO (ppm → 8-hour average এ কনভার্ট করার সহজ উপায়)
+    # CO (8-hour average in ppm)
     if co is not None:
-        bp_co = [(0,4.4,0,50), (4.5,9.4,51,100), (9.5,12.4,101,150), 
-                 (12.5,15.4,151,200), (15.5,30.4,201,300), (30.5,50.4,301,500)]
-        aqi_list.append(("CO", calculate_sub_aqi(co, bp_co)))
+        bp = [(0, 4.4, 0, 50), (4.5, 9.4, 51, 100), (9.5, 12.4, 101, 150),
+              (12.5, 15.4, 151, 200), (15.5, 30.4, 201, 300), (30.5, 50.4, 301, 500)]
+        aqi_list.append(("CO", calculate_sub_aqi(co, bp)))
 
-    # O₃ (ppb)
+    # Ozone O₃ (ppb, 8-hour)
     if o3 is not None:
-        bp_o3 = [(0,54,0,50), (55,70,51,100), (71,85,101,150), 
-                 (86,105,151,200), (106,200,201,300), (201,604,301,500)]
-        aqi_list.append(("O₃", calculate_sub_aqi(o3, bp_o3)))
+        bp = [(0, 54, 0, 50), (55, 70, 51, 100), (71, 85, 101, 150),
+              (86, 105, 151, 200), (106, 200, 201, 300), (201, 604, 301, 500)]
+        aqi_list.append(("O₃", calculate_sub_aqi(o3, bp)))
 
-    # NO₂ (ppb)
+    # NO₂ (ppb, 1-hour)
     if no2 is not None:
-        bp_no2 = [(0,53,0,50), (54,100,51,100), (101,360,101,150), 
-                  (361,649,151,200), (650,1249,201,300), (1250,2049,301,500)]
-        aqi_list.append(("NO₂", calculate_sub_aqi(no2, bp_no2)))
+        bp = [(0, 53, 0, 50), (54, 100, 51, 100), (101, 360, 101, 150),
+              (361, 649, 151, 200), (650, 1249, 201, 300), (1250, 2049, 301, 500)]
+        aqi_list.append(("NO₂", calculate_sub_aqi(no2, bp)))
 
     if not aqi_list:
-        return 0, "কোনো ডাটা নেই"
-    
-    overall_aqi = max([x[1] for x in aqi_list])
-    main_pollutant = [x[0] for x in aqi_list if x[1] == overall_aqi][0]
-    
+        return 0, "No data"
+
+    overall_aqi = max([val for _, val in aqi_list])
+    main_pollutant = [pol for pol, val in aqi_list if val == overall_aqi][0]
+
     return round(overall_aqi), main_pollutant
 
-# প্রেডিক্ট বাটন
-if st.button("AQI দেখাও →", type="primary", use_container_width=True):
+
+# ==================== Predict Button ====================
+if st.button("Calculate AQI", type="primary", use_container_width=True):
     aqi, pollutant = get_aqi(pm25, pm10, co_ppm, o3_ppb, no2_ppb)
 
-    # ক্যাটাগরি ও কালার
+    # Category & Color
     if aqi <= 50:
-        cat = "ভালো"; color = "#00e400"; bg = "lightgreen"
+        category = "Good"
+        color = "#00e400"
     elif aqi <= 100:
-        cat = "মোটামুটি"; color = "#ffff00"; bg = "yellow"
+        category = "Moderate"
+        color = "#ffff00"
     elif aqi <= 150:
-        cat = "সংবেদনশীলদের জন্য অস্বাস্থ্যকর"; color = "#ff7e00"; bg = "orange"
+        category = "Unhealthy for Sensitive Groups"
+        color = "#ff7e00"
     elif aqi <= 200:
-        cat = "অস্বাস্থ্যকর"; color = "#ff0000"; bg = "lightcoral"
+        category = "Unhealthy"
+        color = "#ff0000"
     elif aqi <= 300:
-        cat = "খুব অস্বাস্থ্যকর"; color = "#8f3f97"; bg = "#d3a4d8"
+        category = "Very Unhealthy"
+        color = "#8f3f97"
     else:
-        cat = "বিপজ্জনক"; color = "#7e0023"; bg = "#ffcccc"
+        category = "Hazardous"
+        color = "#7e0023"
 
-    # গজ চার্ট
+    # Clean Gauge Chart (NO DELTA)
     fig = go.Figure(go.Indicator(
-        mode="gauge+number+delta",
+        mode="gauge+number",
         value=aqi,
-        number={'font': {'size': 60, 'color': color}},
-        delta={'reference': 100, 'position': "top"},
+        number={'font': {'size': 72, 'color': color}},
         gauge={
-            'axis': {'range': [0, 500], 'tickwidth': 2, 'tickcolor': "darkblue"},
+            'axis': {'range': [0, 500], 'tickwidth': 1, 'tickcolor': "darkblue"},
             'bar': {'color': color},
-            'bgcolor': "white",
-            'borderwidth': 2,
-            'bordercolor': "gray",
             'steps': [
                 {'range': [0, 50], 'color': '#00e400'},
                 {'range': [51, 100], 'color': '#ffff00'},
@@ -107,24 +112,30 @@ if st.button("AQI দেখাও →", type="primary", use_container_width=True
                 {'range': [151, 200], 'color': '#ff0000'},
                 {'range': [201, 300], 'color': '#8f3f97'},
                 {'range': [301, 500], 'color': '#7e0023'}
-            ]
+            ],
+            'threshold': {'line': {'color': "red", 'width': 6}, 'thickness': 0.75, 'value': aqi}
         },
-        title={'text': f"<b>AQI: {aqi}</b> → {cat}<br><span style='font-size:18px'>মূল দূষক: {pollutant}</span>", 'font': {'size': 22}}
+        title={
+            'text': f"<b>AQI: {aqi}</b><br>{category}<br>Main Pollutant: {pollutant}",
+            'font': {'size': 24}
+        }
     ))
-    fig.update_layout(height=500)
+    fig.update_layout(height=500, margin=dict(l=20, r=20, t=80, b=20))
     st.plotly_chart(fig, use_container_width=True)
 
-    # বাংলায় সাজেশন
-    st.markdown("### স্বাস্থ্য সুপারিশ")
-    suggestions = {
-        "ভালো": "বাতাস একদম ভালো আছে। বাইরে খেলাধুলা, হাঁটা-চলা করতে পারো।",
-        "মোটামুটি": "সাধারণত নিরাপদ। তবে শ্বাসকষ্ট বা হাঁপানির রোগী সতর্ক থাকুন।",
-        "সংবেদনশীলদের জন্য অস্বাস্থ্যকর": "শিশু, বৃদ্ধ, হাঁপানি/হৃদরোগী ব্যক্তিরা বাইরের কার্যকলাপ কমিয়ে দিন।",
-        "অস্বাস্থ্যকর": "সবাই বাইরের কার্যকলাপ কমান। N95 মাস্ক পরুন। শিশুদের ঘরে রাখুন।",
-        "খুব অস্বাস্থ্যকর": "বাইরে বের হওয়া একদম এড়িয়ে চলুন। ঘরের জানালা বন্ধ রাখুন। এয়ার পিউরিফায়ার চালান।",
-        "বিপজ্জনক": "জরুরি অবস্থা! সবাই ঘরে থাকুন। বাইরে বের হলে N95/KN95 মাস্ক অবশ্যই পরুন।"
+    # Health Recommendations (English)
+    st.markdown("### Health Recommendations")
+    recommendations = {
+        "Good": "Air quality is satisfactory. Enjoy outdoor activities!",
+        "Moderate": "Air quality is acceptable. Sensitive people should consider reducing prolonged outdoor exertion.",
+        "Unhealthy for Sensitive Groups": "Sensitive groups (children, elderly, asthma patients) should limit outdoor activities.",
+        "Unhealthy": "Everyone may begin to experience health effects. Limit outdoor activities and wear N95 mask.",
+        "Very Unhealthy": "Health alert! Avoid outdoor activities. Stay indoors with windows closed. Use air purifier.",
+        "Hazardous": "Emergency conditions. Everyone must stay indoors. Wear N95/KN95 mask if going outside is unavoidable."
     }
-    st.success(suggestions[cat])
+    st.success(recommendations[category])
 
+
+# Footer
 st.markdown("---")
-st.caption("তৈরি করেছেন তোমার নাম ❤️ | ডাটা সোর্স: US EPA AQI Standard | লাইভ ডেমো: তোমার লিঙ্ক")
+st.caption("Made with Team NetZERO Emission | Based on US EPA AQI Standards | Open Source on GitHub")
